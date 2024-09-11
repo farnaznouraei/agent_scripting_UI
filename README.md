@@ -1,6 +1,10 @@
 # agent_scripting_UI
+Includes a React application, and an equivalent HTML file for the conversation authoring UI.
 
-### Step-by-Step Setup:
+### HTML APP: Step-by-Step Setup:
+To run the HTML app, simply download the .html file and run from your local machine.
+
+### REACT APP: Step-by-Step Setup:
 
 1. **install NodeJS[https://nodejs.org/en/download/package-manager] for your computer**
    On mac:

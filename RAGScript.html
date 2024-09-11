@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>RAG Script Editor</title>
+<script src="https://unpkg.com/gojs/release/go-debug.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<style>
+.delete-button {
+    visibility: hidden;
+    cursor: pointer;
+    color: red;
+}
+.user-option:hover .delete-button {
+    visibility: visible;
+}
+.add-state-button, .save-json-button {
+    position: absolute;
+    top: 10px;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    z-index: 1000;
+    margin-right: 10px;
+}
+.add-state-button:hover {
+    background-color: #0056b3;
+}
+.save-json-button {
+    right: 140px;
+    background-color: #28a745;
+}
+.save-json-button:hover {
+    background-color: #218838;
+}
+.input-container {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+.large-textbox {
+    width: 80%;
+    height: 50px;
+    padding: 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+.send-button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.send-button:hover {
+    background-color: #0056b3;
+}
+.result-container {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f8f9fa;
+}
+</style>
+</head>
+<body>
+<div class="flex flex-col prose">
+    <div class="w-full max-w-screen-xl mx-auto">
+        <div id="sample" style="position: relative;">
+            <button class="add-state-button" onclick="addNewState()">Add New State</button>
+            <button class="save-json-button" onclick="saveDiagramJSON()">Save JSON</button>
+            <div id="myDiagramDiv" style="border: solid 1px black; width: 100%; height: 500px"></div>
+        </div>
+        <div class="input-container">
+            <textarea class="large-textbox" id="userInput" placeholder="Enter your message here..."></textarea>
+            <button class="send-button" onclick="sendToAssistant()">Send to Assistant</button>
+        </div>
+        <div class="result-container" id="assistantResponse"></div>
+    </div>
+</div>
+<script id="code">
+async function sendToAssistant() {
+  const userInput = document.getElementById("userInput").value;
+  if (!userInput) {
+    alert("Please enter a message.");
+    return;
+  }
+  const apiKey = 'key'; // Replace with your OpenAI API key
+  const url = 'https://api.openai.com/v1/chat/completions';
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${apiKey}`
+  };
+  const data = {
+    model: "gpt-4", // Ensure you are using the correct model identifier
+    messages: [
+      { role: "user", content: userInput }
+    ],
+    max_tokens: 150,
+    temperature: 0.7,
+  };
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const responseData = await response.json();
+    const assistantResponse = responseData.choices[0].message.content;
+    document.getElementById("assistantResponse").innerText = `Assistant: ${assistantResponse}`;
+  } catch (error) {
+    console.error('Error:', error);
+    alert("Failed to get a response from the assistant.");
+  }
+}
+
+function init() {
+  const $ = go.GraphObject.make;
+
+  // Function to add a new user option
+  function addUserOption(e, obj) {
+    const node = obj.part; // get the node containing this button
+    const diagram = node.diagram;
+    diagram.startTransaction("add option");
+    const data = node.data;
+    const itemArray = data.fields || []; // get or create the itemArray
+    const menuID = "MI" + (itemArray.length + 1);
+    const newMenuItem = { menuID: menuID, menuItem: "New option" };
+    // Add new menu item to the itemArray
+    diagram.model.insertArrayItem(itemArray, -1, newMenuItem);
+    diagram.commitTransaction("add option");
+  }
+
+  // Function to delete a user option
+  function deleteUserOption(e, obj) {
+    const itemPanel = obj.panel.panel;
+    const userOption = itemPanel.data;
+    const node = itemPanel.part;
+    if (node instanceof go.Node) {
+      const diagram = node.diagram;
+      diagram.startTransaction("delete option");
+      // Remove the user option from the node's itemArray
+      const itemArray = node.data.fields;
+      const itemIndex = itemArray.indexOf(userOption);
+      if (itemIndex >= 0) {
+        diagram.model.removeArrayItem(itemArray, itemIndex);
+      }
+      diagram.commitTransaction("delete option");
+    }
+  }
+
+  // Function to add a new state
+  function addNewState() {
+    const diagram = myDiagram;
+    diagram.startTransaction("add state");
+    const newKey = "new_state_" + (diagram.model.nodeDataArray.length + 1);
+    const newNodeData = {
+      key: newKey,
+      agent: "New State",
+      fields: [],
+      loc: "100 100"
+    };
+    diagram.model.addNodeData(newNodeData);
+    diagram.commitTransaction("add state");
+  }
+
+  // Function to save diagram JSON
+  function saveDiagramJSON() {
+    const json = myDiagram.model.toJson();
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    saveAs(blob, "diagram.json");
+  }
+
+  // Ensure the functions are globally accessible
+  window.addNewState = addNewState;
+  window.saveDiagramJSON = saveDiagramJSON;
+  window.sendToAssistant = sendToAssistant;
+
+  const myDiagram = $(go.Diagram, "myDiagramDiv", {
+    "undoManager.isEnabled": true,
+    ModelChanged: (e) => {
+      if (e.isTransactionFinished) { /* No longer calling showModel() */}
+    },
+    validCycle: go.CycleMode.All, // Allow all cycles
+    "linkingTool.linkValidation": checkLink,
+    "relinkingTool.linkValidation": checkLink,
+    "LinkDrawn": (e) => { enforceLinkConstraint(e.subject); },
+    "LinkRelinked": (e) => { enforceLinkConstraint(e.subject); }
+  });
+
+  // Function to check link validation
+  function checkLink(fromNode, fromPort, toNode, toPort, link) {
+    if (!fromPort || !toPort) return false;
+    return true; // Allow all links
+  }
+
+  // Function to enforce link constraints
+  function enforceLinkConstraint(link) {
+    const fromPort = link.fromPort;
+    if (fromPort) {
+      const links = fromPort.linksConnected;
+      while (links.count > 1) {
+        const l = links.first();
+        if (l !== link) link.diagram.remove(l);
+        break;
+      }
+    }
+  }
+
+  const fieldTemplate = $(go.Panel, "TableRow", {
+    background: "transparent",
+    fromSpot: go.Spot.Right,
+    toSpot: go.Spot.Left,
+    fromLinkable: true,
+    toLinkable: false,
+    margin: new go.Margin(2, 0),
+    alignment: go.Spot.Right,
+    alignmentFocus: go.Spot.Right,
+    stretch: go.GraphObject.Fill
+  }).add(
+    $(go.Panel, "Horizontal", {
+      name: "USER_OPTION",
+      background: "transparent",
+      cursor: "pointer",
+      alignment: go.Spot.Right,
+      alignmentFocus: go.Spot.Right,
+      stretch: go.GraphObject.Fill
+    },
+    $(go.Panel, // Invisible placeholder to reserve space for the delete button
+      { width: 14 }
+    ),
+    $(go.TextBlock, {
+      margin: new go.Margin(0, 5),
+      font: '13px sans-serif',
+      editable: true,
+      isMultiline: false,
+      textAlign: "right",
+      width: 100
+    }, new go.Binding("text", "menuItem").makeTwoWay()),
+    $(go.Shape, {
+      width: 12,
+      height: 12,
+      fill: "#00BCF2",
+      strokeWidth: 2,
+      fromLinkable: true,
+      toLinkable: false,
+      alignment: go.Spot.Right,
+      margin: new go.Margin(0, 0, 0, 5),
+    }, new go.Binding("portId", "menuID"))
+    ),
+    $(go.Shape, {
+      name: "DELETE_BUTTON",
+      figure: "XLine",
+      desiredSize: new go.Size(8, 8),
+      stroke: "red",
+      strokeWidth: 2,
+      alignment: go.Spot.Left,
+      margin: new go.Margin(0, -12, 0, 5), // Position the delete button over the placeholder
+      visible: false,
+      click: deleteUserOption
+    })
+  );
+
+  myDiagram.nodeTemplate = $(go.Node, "Auto", {
+    copyable: true,
+    deletable: true,
+    resizable: true,
+    resizeObjectName: "PANEL",
+  },
+  $(go.Shape, { fill: "#EEEEEE" }),
+  $(go.Panel, "Vertical", { name: "PANEL", minSize: new go.Size(100, 60) },
+    $(go.Panel, "Auto", { stretch: go.Stretch.Horizontal },
+      $(go.Shape, { fill: "#1570A6", stroke: null }),
+      $(go.TextBlock, {
+        alignment: go.Spot.Center,
+        margin: new go.Margin(5, 5, 5, 20),
+        stroke: "white",
+        textAlign: "center",
+        font: "bold 12pt sans-serif",
+        editable: true
+      }, new go.Binding("text", "key").makeTwoWay())
+    ),
+    $(go.Panel, "Auto", { stretch: go.Stretch.Horizontal, toLinkable: false },
+      $(go.Shape, { fill: '#00BCF2', stroke: null }),
+      $(go.TextBlock, {
+        alignment: go.Spot.Left,
+        margin: new go.Margin(5, 5, 5, 20),
+        stroke: "black",
+        textAlign: "left",
+        font: "italic 12pt sans-serif",
+        editable: true,
+        wrap: go.TextBlock.WrapFit
+      }, new go.Binding("text", "agent").makeTwoWay())
+    ),
+    $(go.Panel, "Table", {
+      padding: new go.Margin(5, 5, 5, 15),
+      minSize: new go.Size(100, 10),
+      defaultStretch: go.Stretch.Horizontal,
+      itemTemplate: fieldTemplate
+    }, new go.Binding("itemArray", "fields")),
+    $(go.Panel, "Horizontal", {
+      alignment: go.Spot.Right,
+      alignmentFocus: go.Spot.Right,
+      margin: new go.Margin(5, 0, 0, 0)
+    },
+    $("Button", { click: addUserOption },
+      $(go.TextBlock, "Add Option")
+    )
+    )
+  ),
+  $(go.Shape, {
+    width: 6,
+    height: 6,
+    fill: "green",
+    margin: new go.Margin(4, 4, 4, 0),
+    portId: "L",
+    fromLinkable: true,
+    toLinkable: true,
+    fromSpot: go.Spot.Left,
+    toSpot: go.Spot.Left,
+    alignment: go.Spot.Left
+  })
+  );
+
+  myDiagram.linkTemplate = $(go.Link, {
+    relinkableFrom: true,
+    relinkableTo: true,
+    toShortLength: 4,
+    fromShortLength: 2,
+    routing: go.Link.AvoidsNodes, // Adjust link routing to avoid nodes
+    curve: go.Link.JumpOver, // Make links jump over intersections for better organization
+  },
+  $(go.Shape, { strokeWidth: 1.5 }),
+  $(go.Shape, { toArrow: "Standard", stroke: null })
+  );
+
+  myDiagram.model = new go.GraphLinksModel({
+    copiesArrays: true,
+    copiesArrayObjects: true,
+    linkFromPortIdProperty: "fromPort",
+    linkToPortIdProperty: "toPort",
+    nodeDataArray: [
+      {
+        key: "STATE1",
+        agent: "Hi Bob, how are you?",
+        fields: [
+          { menuID: "MI1", menuItem: "Fine thanks." },
+          { menuID: "MI2", menuItem: "Could be better." }
+        ],
+        loc: "0 0"
+      },
+      {
+        key: "STATE2",
+        agent: "Terrific.",
+        fields: [],
+        loc: "280 0"
+      },
+      {
+        key: "STATE3",
+        agent: "Sorry to hear.",
+        fields: [],
+        loc: "280 80"
+      }
+    ],
+    linkDataArray: [
+      { from: "STATE1", fromPort: "MI1", to: "STATE2", toPort: "L" },
+      { from: "STATE1", fromPort: "MI2", to: "STATE3", toPort: "L" }
+    ]
+  });
+}
+window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

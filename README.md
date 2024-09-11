@@ -32,6 +32,12 @@ To run the HTML app, simply download the .html file and run from your local mach
 4. **Create Components:**
    * Create a folder named `components` inside the `src` directory.
    * Inside `components`, create a file named `Diagram.js`.
+  
+5. **Run App:**
+   within the my-app folder, run:
+   ```
+   npm start
+   ```
 
 
 ### Reference: Directory Structure:

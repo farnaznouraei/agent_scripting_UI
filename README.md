@@ -41,15 +41,15 @@ To run the HTML app, simply download the .html file and run from your local mach
 
 
 ### Reference: Directory Structure:
-```
-my-app/
-|-- public/
-|-- src/
-|   |-- components/
-|   |   |-- Diagram.js
-|   |-- App.js
-|   |-- index.js
-|-- package.json
-```
+   ```
+   my-app/
+   |-- public/
+   |-- src/
+   |   |-- components/
+   |   |   |-- Diagram.js
+   |   |-- App.js
+   |   |-- index.js
+   |-- package.json
+   ```
 
 

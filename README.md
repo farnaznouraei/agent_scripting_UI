@@ -18,7 +18,7 @@ To run the HTML app, simply download the .html file and run from your local mach
      npm -v # should print
     ```
 4.  **Initialize the React Project:**
-   * Install Create React App.
+   Install Create React App.
    ```
    npx create-react-app my-app
    cd my-app
